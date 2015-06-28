@@ -1,21 +1,95 @@
+=pod
+
+=encoding UTF-8
+
 =head1 NAME
 
-Asset::Pack - Easily pack assets into perl modules that can be fatpacked
+Asset::Pack - Easily pack assets into Perl Modules that can be fat-packed
 
-=head1 WHY?
+=head1 VERSION
 
-Because I had to write it anyway to make L<DB::Crud> be deployable as a script
+version 0.000001
 
-I'm using it to embed templates, javascript and css inside modules which are then
-fatpacked into a single script. It's a horrible hack, caveat emptor etc.
+=head1 SYNOPSIS
 
-=head1 SHOULD I USE THIS?
+    #!/usr/bin/env perl
+    use Asset::Pack;
+    # lib/MyApp/Asset/FooJS.pm will embed assets/foo.js
+    write_module('assets/foo.js' 'MyApp::Asset::FooJS' 'lib');
 
-Probably not. It's really not designed to be used except for in fatpacked scripts
-If you don't know what a fatpacked script is, you really shouldn't.
+=head1 DESCRIPTION
 
-=head1 LICENSE
+This module allows you to construct Perl modules containing the content of
+arbitrary files, which may then be installed or fat-packed.
+
+In most cases, this module is not what you want, and you should use a
+C<File::ShareDir> based system instead, but C<File::ShareDir> based systems are
+inherently not fat-pack friendly.
+
+However, if you need embedded, single-file applications, aggregating not only
+Perl Modules, but templates, JavaScript and CSS, this tool will make some of
+your work easier.
+
+=head1 FUNCTIONS
+
+=head2 C<module_rel_path>
+
+  module_rel_path(module) -> file_path (string)
+
+  module_rel_path("Foo::Bar") # "Foo/Bar.pm"
+
+Turns a module name (e.g. 'Foo::Bar') into a file path relative to a library
+directory root
+
+=head2 C<module_full_path>
+
+  module_full_path(module, libdir) -> file_path (string)
+
+  module_full_path("Foo::Bar", "./") # "./Foo/Bar.pm"
+
+Turns a module name and a library directory into a file path
+
+=head2 C<pack_asset>
+
+  pack_asset($module, $path) -> byte_string
+
+  pack_asset("Foo::Bar", "./foo.js") # "ZnVuY3Rpb24oKXt9"
+
+Given a module name and the path of an asset to be packed, returns the new
+module with the content packed into the data section
+
+=head2 C<write_module>
+
+  write_module($source, $module, $libdir)
+
+  write_module("./foo.js", "Foo::Bar", "./")
+  # ./Foo/Bar.pm now contains a uuencoded copy of foo.js
+
+Given a source asset path, a module name and a library directory, packs the
+source into a module named C<$module> and saves it in the right place relative
+to C<$libdir>
+
+See L</SYNOPSIS> and try it out!
+
+=head1 AUTHORS
+
+=over 4
+
+=item *
+
+James Laver
+
+=item *
+
+Kent Fredric <kentnl@cpan.org>
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
 
 This software is copyright (c) 2015 by James Laver on time generously donated by Anomalio.
 
-This is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut

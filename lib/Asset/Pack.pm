@@ -1,11 +1,16 @@
+use 5.010000;
+use strict;
+use warnings;
+
 package Asset::Pack;
 
-use v5.10;
-use Path::Tiny;
-use MIME::Base64;
+use Path::Tiny qw( path );
 
-require Exporter;
-our @ISA = qw(Exporter);
+our $VERSION = '0.000001';
+
+# ABSTRACT: Easily pack assets into Perl Modules that can be fat-packed
+
+use parent qw(Exporter);
 our @EXPORT_OK = qw(
   module_rel_path module_full_path
   pack_asset write_module unpack_asset
@@ -15,7 +20,7 @@ our @EXPORT = qw(write_module unpack_asset);
 
 sub module_rel_path {
   my ($module) = @_;
-  $module =~ s(::)(/)g;
+  $module =~ s{::}{/}g;
   return "${module}.pm";
 }
 
@@ -25,38 +30,29 @@ sub module_full_path {
 }
 
 sub pack_asset {
-  my ($module, $path) = @_;
-  my $content = encode_base64(path($path)->slurp_raw);
-  return <<EOF;
+  my ( $module, $path ) = @_;
+  my $content = pack 'u', path($path)->slurp_raw;
+  return <<"EOF";
 package $module;
-use Asset::Pack;
-our \$content = unpack_asset;
+our \$content = join q[], *DATA->getlines;
+close *DATA;
+\$content =~ s/\\s+//g;
+\$content = unpack 'u', \$content;
 __DATA__
 $content
 EOF
 }
 
 sub write_module {
-  my ($source, $module, $libdir) = @_;
-  my $dest = module_full_path($module, $libdir);
-  $dest->parent->mkpath; # mkdir
-  $dest->spew_utf8(pack_asset($module, $source));
-}
-
-sub unpack_asset {
-  my $caller = caller;
-  my $fh = \*{"${caller}::DATA"};
-  my $content = join("", $fh->getlines);
-  $content =~ s/\s+//g;
-  return decode_base64($content);
+  my ( $source, $module, $libdir ) = @_;
+  my $dest = module_full_path( $module, $libdir );
+  $dest->parent->mkpath;    # mkdir
+  $dest->spew_utf8( pack_asset( $module, $source ) );
+  return;
 }
 
 1;
 __END__
-
-=head1 NAME
-
-Asset::Pack - Easily pack assets into perl modules that can be fatpacked
 
 =head1 SYNOPSIS
 
@@ -65,51 +61,54 @@ Asset::Pack - Easily pack assets into perl modules that can be fatpacked
     # lib/MyApp/Asset/FooJS.pm will embed assets/foo.js
     write_module('assets/foo.js' 'MyApp::Asset::FooJS' 'lib');
 
-=head1 WHY?
+=head1 DESCRIPTION
 
-Because I had to write it anyway to make L<DB::Crud> be deployable as a script
+This module allows you to construct Perl modules containing the content of
+arbitrary files, which may then be installed or fat-packed.
 
-I'm using it to embed templates, javascript and css inside modules which are then
-fatpacked into a single script. It's a horrible hack, caveat emptor etc.
+In most cases, this module is not what you want, and you should use a
+C<File::ShareDir> based system instead, but C<File::ShareDir> based systems are
+inherently not fat-pack friendly.
 
-=head1 SHOULD I USE THIS?
+However, if you need embedded, single-file applications, aggregating not only
+Perl Modules, but templates, JavaScript and CSS, this tool will make some of
+your work easier.
 
-Probably not. It's really not designed to be used except for in fatpacked scripts
-If you don't know what a fatpacked script is, you really shouldn't.
+=func C<module_rel_path>
 
-=head1 NOTES
+  module_rel_path(module) -> file_path (string)
 
-Generated files are dependent on the Asset::Pack module. I might remove this dep in future
-but it's not a concern for me for the project I wrote this for. Patches welcome.
+  module_rel_path("Foo::Bar") # "Foo/Bar.pm"
 
-=head1 FUNCTIONS
+Turns a module name (e.g. 'Foo::Bar') into a file path relative to a library
+directory root
 
-=head2 module_rel_path(module) -> file_path (string)
+=func C<module_full_path>
 
-Turns a module name (e.g. 'Foo::Bar') into a file path relative to a library directory root
+  module_full_path(module, libdir) -> file_path (string)
 
-=head2 module_full_path(module, libdir) -> file_path (string)
+  module_full_path("Foo::Bar", "./") # "./Foo/Bar.pm"
 
 Turns a module name and a library directory into a file path
 
-=head2 pack_asset($module, $path) -> byte_string
+=func C<pack_asset>
 
-Given a module name and the path of an asset to be packed, returns the new module with the
-content packed into the data section
+  pack_asset($module, $path) -> byte_string
 
-=head2 write_module($source, $module, $libdir)
+  pack_asset("Foo::Bar", "./foo.js") # "ZnVuY3Rpb24oKXt9"
 
-Given a source asset path, a module name and a library directory, packs the source into a module
-named C<$module> and saves it in the right place relative to C<$libdir>
+Given a module name and the path of an asset to be packed, returns the new
+module with the content packed into the data section
 
-See 'synopsis' and try it out!
+=func C<write_module>
 
-=head2 unpack_asset(FH) -> byte_string
+  write_module($source, $module, $libdir)
 
-FH is assumed to be DATA. Please pass in DATA
+  write_module("./foo.js", "Foo::Bar", "./")
+  # ./Foo/Bar.pm now contains a uuencoded copy of foo.js
 
-=head1 LICENSE
+Given a source asset path, a module name and a library directory, packs the
+source into a module named C<$module> and saves it in the right place relative
+to C<$libdir>
 
-This software is copyright (c) 2015 by James Laver
-
-This is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+See L</SYNOPSIS> and try it out!
